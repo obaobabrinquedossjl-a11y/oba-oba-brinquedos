@@ -12,6 +12,7 @@
   let state = structuredClone(defaultState);
   let syncTimer = null;
   let remoteErrorShown = false;
+  let appEventsInitialized = false;
   let currentSection = "dashboard";
   let quoteFilter = "all";
   let editingToyImage = "";
@@ -27,6 +28,76 @@
   const compactCurrency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
   const dateLong = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
   const monthLong = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
+
+  function showLogin(message = "") {
+    document.body.classList.remove("auth-pending");
+    document.body.classList.add("auth-required");
+    document.body.style.overflow = "";
+    $("#loginError").textContent = message;
+    $("#loginPassword").value = "";
+    setTimeout(() => $("#loginPassword").focus(), 0);
+  }
+
+  function showApp() {
+    document.body.classList.remove("auth-pending", "auth-required");
+  }
+
+  async function checkSession() {
+    if (!/^https?:$/.test(location.protocol)) return true;
+    try {
+      const response = await fetch("/api/auth/session", { headers: { Accept: "application/json" }, credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) return false;
+      const payload = await response.json();
+      return payload.authenticated === true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function submitLogin(event) {
+    event.preventDefault();
+    const submit = $("#loginSubmit");
+    const error = $("#loginError");
+    submit.disabled = true;
+    submit.querySelector("span").textContent = "Entrando...";
+    error.textContent = "";
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ username: $("#loginUsername").value.trim(), password: $("#loginPassword").value })
+      });
+      const payload = response.headers.get("Content-Type")?.includes("application/json") ? await response.json() : {};
+      if (!response.ok) throw new Error(payload.error || "Não foi possível entrar.");
+      await startApp();
+    } catch (loginError) {
+      error.textContent = loginError instanceof Error ? loginError.message : "Não foi possível entrar.";
+      $("#loginPassword").select();
+    } finally {
+      submit.disabled = false;
+      submit.querySelector("span").textContent = "Entrar no painel";
+    }
+  }
+
+  async function logout() {
+    clearTimeout(syncTimer);
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json" } });
+    } finally {
+      showLogin("Você saiu da conta com segurança.");
+    }
+  }
+
+  function initAuthEvents() {
+    $("#loginForm").addEventListener("submit", submitLogin);
+    $("#passwordToggle").addEventListener("click", () => {
+      const input = $("#loginPassword");
+      const showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      $("#passwordToggle").setAttribute("aria-label", showing ? "Mostrar senha" : "Ocultar senha");
+    });
+  }
 
   function loadLocalState() {
     try {
@@ -66,11 +137,15 @@
     state = local;
     if (!/^https?:$/.test(location.protocol)) {
       setSyncStatus("offline", "Modo local neste dispositivo");
-      return;
+      return true;
     }
     try {
       setSyncStatus("syncing", "Conectando ao banco...");
       const response = await fetch("/api/state", { headers: { Accept: "application/json" }, cache: "no-store" });
+      if (response.status === 401) {
+        showLogin("Sua sessão expirou. Entre novamente.");
+        return false;
+      }
       if (!response.ok || !response.headers.get("Content-Type")?.includes("application/json")) throw new Error("API indisponível");
       const payload = await response.json();
       if (payload.state) {
@@ -78,12 +153,14 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } else if (hasBusinessData(local)) {
         const migrated = await persistRemoteState(local, true);
-        if (!migrated) return;
+        if (!migrated) return !document.body.classList.contains("auth-required");
       }
       setSyncStatus("online", "Dados sincronizados na nuvem");
+      return true;
     } catch (error) {
       console.error("Falha ao carregar dados da nuvem", error);
       setSyncStatus("offline", "Sem conexão • usando dados locais");
+      return true;
     }
   }
 
@@ -111,6 +188,10 @@
         keepalive: true
       });
       const payload = response.headers.get("Content-Type")?.includes("application/json") ? await response.json() : {};
+      if (response.status === 401) {
+        showLogin("Sua sessão expirou. Entre novamente.");
+        return false;
+      }
       if (!response.ok) throw new Error(payload.error || "Não foi possível salvar os dados.");
       remoteErrorShown = false;
       setSyncStatus("online", "Dados sincronizados na nuvem");
@@ -802,6 +883,7 @@
       if (action === "new-client") openClientForm();
       if (action === "quick-client") openClientForm(null, "quote");
       if (action === "new-quote") openQuoteForm();
+      if (action === "logout") void logout();
       if (action === "open-settings") {
         $("#businessPhone").value = state.settings.phone;
         $("#businessInstagram").value = state.settings.instagram;
@@ -894,10 +976,14 @@
     $("#profileNewQuote").addEventListener("click", () => openQuoteForm(null, profileClientId));
   }
 
-  async function init() {
+  async function startApp() {
+    showApp();
     $("#todayText").textContent = dateLong.format(new Date());
-    await hydrateState();
-    initEvents();
+    if (!await hydrateState()) return;
+    if (!appEventsInitialized) {
+      initEvents();
+      appEventsInitialized = true;
+    }
     renderDashboard();
     renderToys();
     renderClients();
@@ -908,6 +994,12 @@
     if (requested === "new-quote") openQuoteForm();
     if (requested === "new-toy") openToyForm();
     if (requested === "new-client") openClientForm();
+  }
+
+  async function init() {
+    initAuthEvents();
+    if (await checkSession()) await startApp();
+    else showLogin();
   }
 
   void init();

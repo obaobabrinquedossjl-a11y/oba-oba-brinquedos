@@ -14,6 +14,13 @@ https://oba-oba-brinquedos.oba-oba-brinquedos.workers.dev
 
 Para publicar novas alterações, execute `npm install` uma vez e depois `npm run deploy`.
 
+O acesso ao painel é protegido por login. O usuário administrativo fica em `ADMIN_USERNAME`, no `wrangler.jsonc`; senha e chave de sessão são Secrets da Cloudflare e nunca devem ser adicionadas ao repositório. Para alterá-las:
+
+```bash
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put SESSION_SECRET
+```
+
 ## Banco de dados
 
 Os dados do dashboard são compartilhados pelo Cloudflare D1 `oba-oba-brinquedos-db`. A API roda no mesmo Worker em `/api/state`, e o navegador mantém uma cópia local de segurança para períodos sem conexão.
@@ -50,6 +57,7 @@ npm run deploy
 - calendário mensal com vários eventos no mesmo dia;
 - dados da empresa personalizáveis;
 - persistência compartilhada no Cloudflare D1 com cópia local de segurança (`localStorage`).
+- tela de login com sessão segura, expiração automática e bloqueio de tentativas repetidas.
 
 ## Observação
 
