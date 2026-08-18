@@ -14,6 +14,26 @@ https://oba-oba-brinquedos.oba-oba-brinquedos.workers.dev
 
 Para publicar novas alterações, execute `npm install` uma vez e depois `npm run deploy`.
 
+## Banco de dados
+
+Os dados do dashboard são compartilhados pelo Cloudflare D1 `oba-oba-brinquedos-db`. A API roda no mesmo Worker em `/api/state`, e o navegador mantém uma cópia local de segurança para períodos sem conexão.
+
+Fluxo de desenvolvimento:
+
+```bash
+npm install
+npm run db:migrate:local
+npm run dev
+```
+
+Publicação:
+
+```bash
+npm run db:migrate:remote
+npm run typecheck
+npm run deploy
+```
+
 ## O que já funciona
 
 - cadastro, edição e exclusão de brinquedos;
@@ -29,8 +49,8 @@ Para publicar novas alterações, execute `npm install` uma vez e depois `npm ru
 - aprovação com validação de estoque para a data escolhida;
 - calendário mensal com vários eventos no mesmo dia;
 - dados da empresa personalizáveis;
-- persistência local no navegador (`localStorage`).
+- persistência compartilhada no Cloudflare D1 com cópia local de segurança (`localStorage`).
 
 ## Observação
 
-Esta versão é totalmente local. A futura entrada automática de pedidos via WhatsApp/IA exigirá um backend, banco de dados e integração oficial com a API do WhatsApp.
+A futura entrada automática de pedidos via WhatsApp/IA poderá utilizar a API do Worker, mas ainda exigirá autenticação e integração oficial com a API do WhatsApp.

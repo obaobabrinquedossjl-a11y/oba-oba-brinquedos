@@ -9,7 +9,9 @@
     settings: { phone: "(31) 99682-3046", instagram: "@obaobabrinquedos" }
   };
 
-  let state = loadState();
+  let state = structuredClone(defaultState);
+  let syncTimer = null;
+  let remoteErrorShown = false;
   let currentSection = "dashboard";
   let quoteFilter = "all";
   let editingToyImage = "";
@@ -26,12 +28,62 @@
   const dateLong = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
   const monthLong = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
 
-  function loadState() {
+  function loadLocalState() {
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
       return stored ? { ...defaultState, ...stored, settings: { ...defaultState.settings, ...(stored.settings || {}) } } : structuredClone(defaultState);
     } catch {
       return structuredClone(defaultState);
+    }
+  }
+
+  function mergeState(value) {
+    return value && typeof value === "object" ? {
+      ...defaultState,
+      ...value,
+      toys: Array.isArray(value.toys) ? value.toys : [],
+      clients: Array.isArray(value.clients) ? value.clients : [],
+      quotes: Array.isArray(value.quotes) ? value.quotes : [],
+      settings: { ...defaultState.settings, ...(value.settings || {}) }
+    } : structuredClone(defaultState);
+  }
+
+  function setSyncStatus(status, message) {
+    const dot = $("#syncDot");
+    const text = $("#syncText");
+    if (!dot || !text) return;
+    dot.classList.toggle("syncing", status === "syncing");
+    dot.classList.toggle("offline", status === "offline");
+    text.textContent = message;
+  }
+
+  function hasBusinessData(value) {
+    return value.toys.length > 0 || value.clients.length > 0 || value.quotes.length > 0 || value.settings.phone !== defaultState.settings.phone || value.settings.instagram !== defaultState.settings.instagram;
+  }
+
+  async function hydrateState() {
+    const local = loadLocalState();
+    state = local;
+    if (!/^https?:$/.test(location.protocol)) {
+      setSyncStatus("offline", "Modo local neste dispositivo");
+      return;
+    }
+    try {
+      setSyncStatus("syncing", "Conectando ao banco...");
+      const response = await fetch("/api/state", { headers: { Accept: "application/json" }, cache: "no-store" });
+      if (!response.ok || !response.headers.get("Content-Type")?.includes("application/json")) throw new Error("API indisponível");
+      const payload = await response.json();
+      if (payload.state) {
+        state = mergeState(payload.state);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } else if (hasBusinessData(local)) {
+        const migrated = await persistRemoteState(local, true);
+        if (!migrated) return;
+      }
+      setSyncStatus("online", "Dados sincronizados na nuvem");
+    } catch (error) {
+      console.error("Falha ao carregar dados da nuvem", error);
+      setSyncStatus("offline", "Sem conexão • usando dados locais");
     }
   }
 
@@ -42,10 +94,40 @@
       toast("O armazenamento está cheio. Tente usar fotos menores.", "error");
       console.error(error);
     }
+    clearTimeout(syncTimer);
+    const snapshot = structuredClone(state);
+    syncTimer = setTimeout(() => { void persistRemoteState(snapshot); }, 250);
+  }
+
+  async function persistRemoteState(snapshot, silent = false) {
+    if (!/^https?:$/.test(location.protocol)) return false;
+    try {
+      setSyncStatus("syncing", "Salvando na nuvem...");
+      const response = await fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ state: snapshot }),
+        credentials: "same-origin",
+        keepalive: true
+      });
+      const payload = response.headers.get("Content-Type")?.includes("application/json") ? await response.json() : {};
+      if (!response.ok) throw new Error(payload.error || "Não foi possível salvar os dados.");
+      remoteErrorShown = false;
+      setSyncStatus("online", "Dados sincronizados na nuvem");
+      return true;
+    } catch (error) {
+      console.error("Falha ao salvar dados na nuvem", error);
+      setSyncStatus("offline", "Falha ao sincronizar • dados locais preservados");
+      if (!silent && !remoteErrorShown) {
+        toast(error instanceof Error ? error.message : "Falha ao sincronizar com a nuvem.", "error");
+        remoteErrorShown = true;
+      }
+      return false;
+    }
   }
 
   function uid(prefix) {
-    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+    return `${prefix}_${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`}`;
   }
 
   function parseISODate(value) {
@@ -188,14 +270,14 @@
         const image = new Image();
         image.onerror = reject;
         image.onload = () => {
-          const maxWidth = 1200;
-          const maxHeight = 900;
+          const maxWidth = 900;
+          const maxHeight = 675;
           const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
           const canvas = document.createElement("canvas");
           canvas.width = Math.round(image.width * scale);
           canvas.height = Math.round(image.height * scale);
           canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL("image/jpeg", .78));
+          resolve(canvas.toDataURL("image/jpeg", .68));
         };
         image.src = reader.result;
       };
@@ -812,8 +894,9 @@
     $("#profileNewQuote").addEventListener("click", () => openQuoteForm(null, profileClientId));
   }
 
-  function init() {
+  async function init() {
     $("#todayText").textContent = dateLong.format(new Date());
+    await hydrateState();
     initEvents();
     renderDashboard();
     renderToys();
@@ -827,5 +910,5 @@
     if (requested === "new-client") openClientForm();
   }
 
-  init();
+  void init();
 })();

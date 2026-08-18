@@ -6,9 +6,15 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "deploy:check": "wrangler deploy --dry-run"
+    "deploy:check": "wrangler deploy --dry-run",
+    "db:migrate:local": "wrangler d1 migrations apply oba-oba-brinquedos-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply oba-oba-brinquedos-db --remote",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2",
     "wrangler": "^4.123.0"
   }
 }

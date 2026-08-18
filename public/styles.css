@@ -44,6 +44,9 @@ svg { width: 20px; height: 20px; fill: currentColor; }
 .sidebar-help p { margin: 4px 0 12px; color: #b9cce5; font-size: 11px; line-height: 1.45; }
 .sidebar-foot { display: flex; align-items: center; gap: 7px; padding: 17px 6px 0; color: #7fa0c8; font-size: 9px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #36d67c; box-shadow: 0 0 0 4px rgba(54,214,124,.1); }
+.status-dot.syncing { background: var(--yellow); box-shadow: 0 0 0 4px rgba(255,199,27,.12); animation: sync-pulse 1s ease infinite alternate; }
+.status-dot.offline { background: #ff696e; box-shadow: 0 0 0 4px rgba(255,105,110,.12); }
+@keyframes sync-pulse { to { opacity: .45; } }
 
 .main-content { min-height: 100vh; margin-left: 238px; padding: 0 32px 50px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 108px; gap: 24px; }
