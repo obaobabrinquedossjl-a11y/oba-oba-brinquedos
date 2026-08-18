@@ -1,0 +1,14 @@
+{
+  "name": "oba-oba-brinquedos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard de gestão da Oba Oba Brinquedos",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:check": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "^4.123.0"
+  }
+}

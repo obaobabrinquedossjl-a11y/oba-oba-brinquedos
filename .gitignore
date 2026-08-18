@@ -3,3 +3,6 @@ orçamento oba oba.jpeg
 *-check.png
 .DS_Store
 Thumbs.db
+node_modules/
+.wrangler/
+.dev.vars

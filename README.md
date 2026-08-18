@@ -4,7 +4,15 @@ Sistema local em HTML, CSS e JavaScript para gerenciar brinquedos, orçamentos e
 
 ## Como abrir
 
-Abra o arquivo `index.html` no navegador. Não é necessário instalar dependências.
+Abra o arquivo `public/index.html` no navegador ou execute `npm run dev`. Não é necessário instalar dependências além do Wrangler usado para desenvolvimento e publicação.
+
+## Site publicado
+
+O dashboard está hospedado gratuitamente no Cloudflare Workers:
+
+https://oba-oba-brinquedos.oba-oba-brinquedos.workers.dev
+
+Para publicar novas alterações, execute `npm install` uma vez e depois `npm run deploy`.
 
 ## O que já funciona
 
